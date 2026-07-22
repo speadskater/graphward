@@ -8,7 +8,7 @@ All notable user-facing changes are documented here. Graphward follows semantic 
 
 - One-command Codex and Claude Code setup with selectable clients, dry runs, and explicit replacement.
 - A bundled `graphward-first` workflow installed into each selected agent's user-level skill directory.
-- Local MCP usage and modeled context-efficiency reporting without storing prompts, arguments, source, or responses.
+- Local MCP usage and explicitly labeled full-file-equivalent compression reporting without storing prompts, arguments, source, or responses.
 - User-scoped background service, shared database, multi-repository dashboard, and watcher restoration.
 
 ### Changed

@@ -299,6 +299,7 @@ export function getUsageStats(db, { repoId = null, repoIds = null, period = "30d
 
   const byRepository = usageByRepository(db, where, values, scopedRepoIds);
 
+  const fullFileModel = "Full-file-equivalent compression applies only to MCP answers containing indexed file-path evidence. It compares the unique referenced files' full indexed byte sizes with the serialized Graphward answer. This deliberately broad baseline is not estimated context savings and does not model grep, bounded reads, caching, or a counterfactual agent run.";
   return {
     repo_id: scopedRepoIds.length === 1 ? scopedRepoIds[0] : null,
     repo_ids: scopedRepoIds,
@@ -315,7 +316,8 @@ export function getUsageStats(db, { repoId = null, repoIds = null, period = "30d
     methodology: {
       measured: "MCP tool-call counts, success, duration, and serialized byte sizes are measured locally for calls made after usage accounting was enabled. Dashboard and internal traffic are excluded.",
       token_estimate: `Token figures use a transparent ${TOKEN_BYTES_ESTIMATE}-UTF-8-bytes-per-token heuristic; they are not tokenizer output or billing data.`,
-      savings_model: "Modeled context avoided applies only to MCP answers containing indexed file-path evidence. It compares the unique referenced files' full indexed byte sizes with the serialized Graphward answer, never assigns savings to unmodeled calls, and is not a claim about a counterfactual agent run.",
+      full_file_model: fullFileModel,
+      savings_model: fullFileModel,
       privacy: "The ledger stores no prompts, arguments, source, or responses—only bounded MCP usage metadata—and never leaves this database.",
     },
   };

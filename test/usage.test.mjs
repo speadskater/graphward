@@ -13,7 +13,7 @@ import { getUsageStats } from "../src/usage.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.join(here, "fixtures", "sample");
 
-test("records bounded local usage and labels modeled MCP context efficiency", async (t) => {
+test("records bounded local usage and labels full-file-equivalent MCP compression", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "graphward-usage-"));
   await cp(fixture, root, { recursive: true });
   const db = openDatabase(path.join(root, ".graphward", "index.sqlite"));
@@ -42,7 +42,9 @@ test("records bounded local usage and labels modeled MCP context efficiency", as
   assert.ok(usage.by_tool.some((item) => item.tool_name === "find_code" && item.mcp_calls === 1));
   assert.equal(usage.by_surface.some((item) => item.surface === "dashboard"), false);
   assert.match(usage.methodology.token_estimate, /not tokenizer output or billing data/i);
-  assert.match(usage.methodology.savings_model, /not a claim about a counterfactual agent run/i);
+  assert.match(usage.methodology.full_file_model, /not estimated context savings/i);
+  assert.match(usage.methodology.full_file_model, /grep, bounded reads, caching/i);
+  assert.equal(usage.methodology.savings_model, usage.methodology.full_file_model);
   assert.match(usage.methodology.privacy, /stores no prompts, arguments, source, or responses/i);
 
   const columns = db.prepare("PRAGMA table_info(tool_usage_events)").all().map((column) => column.name);

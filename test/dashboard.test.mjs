@@ -174,7 +174,8 @@ test("serves a loopback-only dashboard with protected local APIs", async (t) => 
   const usage = await usageResponse.json();
   assert.equal(usage.data.totals.calls, 0);
   assert.equal(usage.data.totals.dashboard_calls, 0);
-  assert.match(usage.data.methodology.savings_model, /indexed file-path evidence/i);
+  assert.match(usage.data.methodology.full_file_model, /indexed file-path evidence/i);
+  assert.equal(usage.data.methodology.savings_model, usage.data.methodology.full_file_model);
 
   const projectMcpContext = { db, defaultRoot: root, defaultRepoId: "dashboard", surface: "mcp" };
   await callTool("get_repository_stats", { repo_id: "dashboard" }, projectMcpContext);
@@ -257,6 +258,8 @@ test("serves a loopback-only dashboard with protected local APIs", async (t) => 
   assert.doesNotMatch(application, /https?:\/\//);
   assert.match(application, /worktree/);
   assert.match(application, /data-repo-id/);
+  assert.match(application, /Full-file-equivalent compression/);
+  assert.doesNotMatch(application, /Modeled context avoided/);
   const graphApplication = await (await fetch(`${dashboard.url}/code-graph.js`)).text();
   assert.match(graphApplication, /CodeGraphRenderer/);
   assert.doesNotMatch(graphApplication, /https?:\/\//);

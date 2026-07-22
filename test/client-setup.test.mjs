@@ -47,12 +47,20 @@ test("client adapters build official user-scoped stdio registration commands", (
     "mcp", "add", "graphward", "--",
     runtime.nodePath, runtime.cliPath, "serve", "--watch",
   ]);
+  assert.deepEqual(codex.legacy, {
+    inspect: ["mcp", "get", "localtrace"],
+    remove: ["mcp", "remove", "localtrace"],
+  });
 
   const claude = buildClientCommands("claude", runtime);
   assert.deepEqual(claude.add, [
     "mcp", "add", "--scope", "user", "--transport", "stdio", "graphward", "--",
     runtime.nodePath, runtime.cliPath, "serve", "--watch",
   ]);
+  assert.deepEqual(claude.legacy, {
+    inspect: ["mcp", "get", "localtrace"],
+    remove: ["mcp", "remove", "--scope", "user", "localtrace"],
+  });
 });
 
 test("Claude's stable project root overrides the MCP process working directory", () => {
@@ -121,6 +129,7 @@ test("default setup configures detected clients and skips missing clients", asyn
   assert.equal(result.results[1].status, "skipped");
   assert.deepEqual(calls.map((item) => item.args.slice(0, 3)), [
     ["mcp", "get", "graphward"],
+    ["mcp", "get", "localtrace"],
     ["mcp", "add", "graphward"],
   ]);
 });
@@ -134,11 +143,12 @@ test("setup is idempotent unless force is requested", async () => {
     resolveExecutable: async () => "codex",
     execute: async (_executable, args) => {
       ordinaryCalls.push(args);
+      if (args[1] === "get" && args[2] === "localtrace") return { ok: false, code: 1, stdout: "", stderr: "not found" };
       return { ok: true, code: 0, stdout: "configured", stderr: "" };
     },
   });
   assert.equal(ordinary.results[0].status, "already_configured");
-  assert.equal(ordinaryCalls.length, 1);
+  assert.equal(ordinaryCalls.length, 2);
 
   const forcedCalls = [];
   const forced = await setupClients({
@@ -153,10 +163,37 @@ test("setup is idempotent unless force is requested", async () => {
     },
   });
   assert.equal(forced.results[0].status, "updated");
-  assert.deepEqual(forcedCalls.map((args) => args.slice(0, 2)), [
-    ["mcp", "get"],
-    ["mcp", "remove"],
-    ["mcp", "add"],
+  assert.deepEqual(forcedCalls.map((args) => args.slice(0, 3)), [
+    ["mcp", "get", "graphward"],
+    ["mcp", "get", "localtrace"],
+    ["mcp", "remove", "--scope"],
+    ["mcp", "add", "--scope"],
+    ["mcp", "remove", "--scope"],
+  ]);
+});
+
+test("setup migrates a legacy Localtrace registration to Graphward", async () => {
+  const calls = [];
+  const result = await setupClients({
+    ...runtime,
+    ...skillFixture(),
+    targets: "codex",
+    resolveExecutable: async () => "codex",
+    execute: async (_executable, args) => {
+      calls.push(args);
+      if (args[1] === "get" && args[2] === "graphward") return { ok: false, code: 1, stdout: "", stderr: "not found" };
+      return { ok: true, code: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].status, "updated");
+  assert.match(result.results[0].message, /legacy Localtrace registration/);
+  assert.deepEqual(calls, [
+    ["mcp", "get", "graphward"],
+    ["mcp", "get", "localtrace"],
+    ["mcp", "add", "graphward", "--", runtime.nodePath, runtime.cliPath, "serve", "--watch"],
+    ["mcp", "remove", "localtrace"],
   ]);
 });
 

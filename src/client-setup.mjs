@@ -11,6 +11,7 @@ const CLIENT_ALIASES = new Map([
   ["claude-code", "claude"],
   ["claude_code", "claude"],
 ]);
+const LEGACY_SERVER_NAME = "localtrace";
 const COMMAND_TIMEOUT_MS = 30_000;
 const BUNDLED_SKILL_PATH = fileURLToPath(new URL("../skills/graphward-first/SKILL.md", import.meta.url));
 
@@ -51,6 +52,10 @@ export function buildClientCommands(client, { nodePath, cliPath }) {
       inspect: ["mcp", "get", "graphward"],
       remove: ["mcp", "remove", "graphward"],
       add: ["mcp", "add", "graphward", "--", ...server],
+      legacy: {
+        inspect: ["mcp", "get", LEGACY_SERVER_NAME],
+        remove: ["mcp", "remove", LEGACY_SERVER_NAME],
+      },
       scope: "user",
     };
   }
@@ -60,6 +65,10 @@ export function buildClientCommands(client, { nodePath, cliPath }) {
       inspect: ["mcp", "get", "graphward"],
       remove: ["mcp", "remove", "--scope", "user", "graphward"],
       add: ["mcp", "add", "--scope", "user", "--transport", "stdio", "graphward", "--", ...server],
+      legacy: {
+        inspect: ["mcp", "get", LEGACY_SERVER_NAME],
+        remove: ["mcp", "remove", "--scope", "user", LEGACY_SERVER_NAME],
+      },
       scope: "user",
     };
   }
@@ -196,7 +205,20 @@ function unavailableResult(client, commands, skillPath, { dryRun, explicit }) {
 
 async function configureClient(plan, commands, { force, execute }) {
   const existing = await execute(plan.executable, commands.inspect, { allowFailure: true });
+  const legacy = await execute(plan.executable, commands.legacy.inspect, { allowFailure: true });
   if (existing.ok && !force) {
+    if (legacy.ok) {
+      try {
+        await execute(plan.executable, commands.legacy.remove);
+        return {
+          ...plan,
+          status: "updated",
+          message: "Removed the legacy Localtrace registration; Graphward was already registered",
+        };
+      } catch (error) {
+        return { ...plan, status: "error", message: boundedOutput(error.message) };
+      }
+    }
     return {
       ...plan,
       status: "already_configured",
@@ -207,7 +229,12 @@ async function configureClient(plan, commands, { force, execute }) {
   try {
     if (existing.ok) await execute(plan.executable, commands.remove);
     await execute(plan.executable, commands.add);
-    return { ...plan, status: existing.ok ? "updated" : "configured" };
+    if (legacy.ok) await execute(plan.executable, commands.legacy.remove);
+    return {
+      ...plan,
+      status: existing.ok || legacy.ok ? "updated" : "configured",
+      ...(legacy.ok ? { message: "Migrated the legacy Localtrace registration to Graphward" } : {}),
+    };
   } catch (error) {
     return { ...plan, status: "error", message: boundedOutput(error.message) };
   }

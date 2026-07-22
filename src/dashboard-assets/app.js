@@ -922,14 +922,14 @@ function renderReview(value) {
 
 function usageToolTable(rows) {
   if (!rows.length) return empty("No Graphward tool calls have been recorded in this window.");
-  return `<table class="data-table"><thead><tr><th>Tool</th><th>Calls</th><th>MCP</th><th>Success</th><th>Average</th><th>Estimated output</th><th>Modeled avoided</th></tr></thead><tbody>${rows.map((item) => `
-    <tr><td><strong>${escapeHtml(item.tool_name)}</strong><div class="path">${formatNumber(item.modeled_mcp_calls)} modeled MCP calls</div></td><td>${formatNumber(item.calls)}</td><td>${formatNumber(item.mcp_calls)}</td><td>${percent(item.success_rate)}</td><td>${formatNumber(item.average_duration_ms)} ms</td><td>≈${formatNumber(item.estimated_mcp_output_tokens)} tokens</td><td>≈${formatNumber(item.modeled_context_tokens_avoided)} tokens</td></tr>
+  return `<table class="data-table"><thead><tr><th>Tool</th><th>Calls</th><th>MCP</th><th>Success</th><th>Average</th><th>Estimated output</th><th>Vs full files</th></tr></thead><tbody>${rows.map((item) => `
+    <tr><td><strong>${escapeHtml(item.tool_name)}</strong><div class="path">${formatNumber(item.modeled_mcp_calls)} calls with a full-file baseline</div></td><td>${formatNumber(item.calls)}</td><td>${formatNumber(item.mcp_calls)}</td><td>${percent(item.success_rate)}</td><td>${formatNumber(item.average_duration_ms)} ms</td><td>≈${formatNumber(item.estimated_mcp_output_tokens)} tokens</td><td>≈${formatNumber(item.modeled_context_tokens_avoided)} tokens</td></tr>
   `).join("")}</tbody></table>`;
 }
 
 function usageRepositoryTable(rows) {
   if (!rows.length) return empty("No indexed checkouts belong to this project.");
-  return `<table class="data-table"><thead><tr><th>Checkout</th><th>Branch</th><th>Calls</th><th>Success</th><th>Estimated output</th><th>Modeled avoided</th></tr></thead><tbody>${rows.map((item) => `
+  return `<table class="data-table"><thead><tr><th>Checkout</th><th>Branch</th><th>Calls</th><th>Success</th><th>Estimated output</th><th>Vs full files</th></tr></thead><tbody>${rows.map((item) => `
     <tr><td><strong>${item.is_linked_worktree ? "Worktree" : "Main"}</strong><div class="path">${escapeHtml(item.root)}</div></td><td>${escapeHtml(item.branch ?? "detached")}</td><td>${formatNumber(item.calls)}</td><td>${percent(item.success_rate)}</td><td>≈${formatNumber(item.estimated_mcp_output_tokens)} tokens</td><td>≈${formatNumber(item.modeled_context_tokens_avoided)} tokens</td></tr>
   `).join("")}</tbody></table>`;
 }
@@ -939,10 +939,10 @@ function renderUsage(value) {
   const periodLabel = value.period === "all" ? "All retained events" : `Last ${value.period}`;
   $("#usage-metrics").innerHTML = [
     metric("MCP calls", formatNumber(totals.calls), periodLabel),
-    metric("Modeled calls", formatNumber(totals.modeled_mcp_calls), `${percent(totals.model_coverage)} have a measurable file baseline`),
+    metric("Full-file baselines", formatNumber(totals.modeled_mcp_calls), `${percent(totals.model_coverage)} of calls cite measurable indexed files`),
     metric("Successful", percent(totals.success_rate), `${formatNumber(totals.failed_calls)} failed calls`),
     metric("Estimated MCP output", `≈${formatNumber(totals.estimated_mcp_output_tokens)}`, "Tokens · four-byte heuristic"),
-    metric("Modeled context avoided", `≈${formatNumber(totals.modeled_context_tokens_avoided)}`, `${percent(totals.modeled_context_reduction)} reduction on modeled calls`),
+    metric("Full-file-equivalent compression", `≈${formatNumber(totals.modeled_context_tokens_avoided)}`, `${percent(totals.modeled_context_reduction)} smaller than referenced full files · not estimated savings`),
   ].join("");
   $("#usage-tools").innerHTML = usageToolTable(value.by_tool ?? []);
   $("#usage-repositories").innerHTML = usageRepositoryTable(value.by_repository ?? []);
@@ -950,7 +950,7 @@ function renderUsage(value) {
   $("#usage-methodology").innerHTML = [
     ["Measured", methodology.measured],
     ["Token estimate", methodology.token_estimate],
-    ["Context model", methodology.savings_model],
+    ["Full-file baseline", methodology.full_file_model ?? methodology.savings_model],
     ["Privacy", methodology.privacy],
   ].map(([title, description]) => `<div class="methodology-item"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(description)}</p></div>`).join("");
   const projectLabel = value.project ? `${value.project.name} · main + ${formatNumber(value.project.worktree_count)} worktree${value.project.worktree_count === 1 ? "" : "s"}` : "";

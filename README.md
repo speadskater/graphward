@@ -176,7 +176,7 @@ The dashboard accepts only `127.0.0.1`, `::1`, or `localhost`, rejects hostile H
 
 Open **Code graph** to explore the indexed program itself. Drag to orbit, use the wheel to zoom, search for a symbol or file, click a point to inspect its graph degree and source location, or double-click to open the full symbol context in Explorer. Calls and imports can be toggled independently; tests can be hidden without rebuilding the projection. Community coloring emphasizes directory topology while symbol-kind coloring distinguishes functions, methods, classes, constructors, and modules.
 
-Open **Efficiency** to see how often Graphward is called through MCP, success and latency, and approximate MCP output size. The totals aggregate the main checkout and every indexed linked worktree in the selected project, with a per-checkout breakdown below the tool table. Browser-dashboard and internal calls are not recorded. “Modeled context avoided” is calculated only when an MCP result cites indexed files: Graphward compares the unique files' measured full sizes with the serialized answer. Calls without that evidence remain unmodeled, and the four-bytes-per-token estimate is neither tokenizer output nor billing data. Collection begins when version 0.10 first opens the database and retains at most 50,000 metadata-only events.
+Open **Efficiency** to see how often Graphward is called through MCP, success and latency, approximate MCP output size, and full-file-equivalent compression. The totals aggregate the main checkout and every indexed linked worktree in the selected project, with a per-checkout breakdown below the tool table. Browser-dashboard and internal calls are not recorded. Full-file-equivalent compression is calculated only when an MCP result cites indexed files: Graphward compares the unique files' measured full sizes with the serialized answer. It is deliberately not labeled context saved because a realistic alternative may use `rg`, bounded reads, caching, or other selective discovery instead of reading complete files. Calls without file evidence have no baseline, and the four-bytes-per-token estimate is neither tokenizer output nor billing data. Collection begins when version 0.10 first opens the database and retains at most 50,000 metadata-only events.
 
 The Full index detail level currently returns up to 8,000 symbols and 32,000 edges; Maximum raises the symbol ceiling to 12,000 and the server-side edge ceiling to 40,000. The graph always displays both indexed and rendered counts, plus whether the view was bounded. `get_code_graph` exposes the same evidence through MCP.
 
@@ -234,7 +234,7 @@ Useful agent prompts include:
 - “Run `change_preflight` on this diff and give me the required verification targets.”
 - “Show exports, inheritance, types, and endpoint relationships for this file.”
 - “Record this architectural decision locally and link it to these symbols.”
-- “Show Graphward usage and modeled context efficiency for the last 30 days.”
+- “Show Graphward usage and full-file-equivalent compression for the last 30 days.”
 
 For Fleet-aware work, tell each agent: `Before editing, call fleet_publish_intent for this branch and these symbols; call fleet_record_episode when finished.`
 
