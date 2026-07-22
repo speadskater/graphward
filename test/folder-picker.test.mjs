@@ -14,7 +14,7 @@ test("Windows folder picker passes the initial folder outside the PowerShell com
   assert.equal(invocation.executable, "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
   assert.equal(invocation.args.includes(initialPath), false);
   assert.match(invocation.args.at(-1), /GRAPHWARD_PICKER_INITIAL_PATH/);
-  assert.equal(invocation.options.env.GRAPHWARD_PICKER_INITIAL_PATH, path.resolve(initialPath));
+  assert.equal(invocation.options.env.GRAPHWARD_PICKER_INITIAL_PATH, path.win32.resolve(initialPath));
   assert.equal(invocation.options.env.PATH, "example");
 });
 

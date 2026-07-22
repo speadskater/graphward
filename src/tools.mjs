@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { indexDirectory } from "./indexer.mjs";
+import { samePath } from "./path-utils.mjs";
 import { getArchitecture, getCodeGraph, getRepoMap } from "./graph-analysis.mjs";
 import { getCochangeContext } from "./history.mjs";
 import { changePreflight, findDependencyPath, inferExecutionFlows } from "./workflow-analysis.mjs";
@@ -500,14 +501,6 @@ function attachIndexSnapshot(db, value, preferredRepoId = null) {
     : db.prepare("SELECT * FROM repositories ORDER BY indexed_at DESC, id DESC LIMIT 2").all();
   const row = Array.isArray(repository) ? (repository.length === 1 ? repository[0] : null) : repository;
   return row ? { ...value, index_snapshot: getIndexFreshness(row) } : value;
-}
-
-function samePath(left, right) {
-  const normalizedLeft = path.resolve(left);
-  const normalizedRight = path.resolve(right);
-  return process.platform === "win32"
-    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
-    : normalizedLeft === normalizedRight;
 }
 
 function indexedRepositoryForRoot(db, root) {

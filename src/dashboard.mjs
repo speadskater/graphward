@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chooseDirectory } from "./folder-picker.mjs";
+import { resolveRealPath, samePath } from "./path-utils.mjs";
 import { groupIndexedProjects, resolveIndexedProject } from "./projects.mjs";
 import { callTool } from "./tools.mjs";
 import { getUsageStats } from "./usage.mjs";
@@ -151,7 +152,7 @@ function statusError(message, statusCode) {
 async function validatedDirectory(value) {
   const requested = boundedText(value, "path", 4_096);
   if (!path.isAbsolute(requested)) throw new Error("path must be absolute");
-  const resolved = await realpath(requested);
+  const resolved = resolveRealPath(await realpath(requested));
   const details = await stat(resolved);
   if (!details.isDirectory()) throw new Error("path must identify a directory");
   return resolved;
@@ -170,12 +171,8 @@ async function pickRepositoryFolder(_request, _url, context) {
 }
 
 function existingRepositoryId(db, root) {
-  const normalizedRoot = process.platform === "win32" ? root.toLowerCase() : root;
   const repositories = db.prepare("SELECT repo_id, root FROM repositories ORDER BY indexed_at DESC, id DESC").all();
-  return repositories.find((repository) => {
-    const candidate = path.resolve(repository.root);
-    return (process.platform === "win32" ? candidate.toLowerCase() : candidate) === normalizedRoot;
-  })?.repo_id ?? null;
+  return repositories.find((repository) => samePath(repository.root, root))?.repo_id ?? null;
 }
 
 async function indexRepository(request, _url, context) {

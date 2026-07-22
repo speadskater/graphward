@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { request } from "node:http";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -35,6 +35,7 @@ function hostileHostRequest(url) {
 test("serves a loopback-only dashboard with protected local APIs", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "graphward-dashboard-"));
   const chosenRoot = await mkdtemp(path.join(os.tmpdir(), "graphward-dashboard-chosen-"));
+  const resolvedChosenRoot = await realpath(chosenRoot);
   await cp(fixture, root, { recursive: true });
   await cp(fixture, chosenRoot, { recursive: true });
   const db = openDatabase(path.join(root, ".graphward", "index.sqlite"));
@@ -113,7 +114,7 @@ test("serves a loopback-only dashboard with protected local APIs", async (t) => 
   assert.equal(pickerResponse.status, 200);
   const picker = await pickerResponse.json();
   assert.equal(picker.data.cancelled, false);
-  assert.equal(picker.data.path, chosenRoot);
+  assert.equal(picker.data.path, resolvedChosenRoot);
 
   const relativeIndexResponse = await fetch(`${dashboard.url}/api/repositories/index`, {
     method: "POST",
@@ -129,7 +130,7 @@ test("serves a loopback-only dashboard with protected local APIs", async (t) => 
   });
   assert.equal(indexResponse.status, 200);
   const indexed = await indexResponse.json();
-  assert.equal(indexed.data.repository.root, chosenRoot);
+  assert.equal(indexed.data.repository.root, resolvedChosenRoot);
   assert.ok(indexed.data.repository.symbols > 0);
   assert.equal(indexed.data.watching.ok, true);
   assert.equal(watched.length, 1);

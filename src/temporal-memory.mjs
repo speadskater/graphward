@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { IGNORED_DIRECTORIES } from "./constants.mjs";
+import { resolveRealPath, samePath } from "./path-utils.mjs";
 import { detectLanguage, parseSource } from "./languages.mjs";
 
 const SCHEMA_VERSION = 2;
@@ -217,19 +218,18 @@ function runGit(root, args, { input = undefined, encoding = "utf8", maxBuffer = 
 function verifyGitRepositoryRoot(root) {
   let expected;
   try {
-    expected = realpathSync(root);
+    expected = resolveRealPath(realpathSync(root));
   } catch (error) {
     throw new TemporalError("REPOSITORY_ROOT_INVALID", `Repository root is unavailable: ${error.message}`);
   }
   const reported = runGit(root, ["rev-parse", "--show-toplevel"]).stdout.trim();
   let actual;
   try {
-    actual = realpathSync(reported);
+    actual = resolveRealPath(realpathSync(reported));
   } catch {
     actual = path.resolve(reported);
   }
-  const normalize = (value) => process.platform === "win32" ? value.toLowerCase() : value;
-  if (normalize(path.resolve(actual)) !== normalize(path.resolve(expected))) {
+  if (!samePath(actual, expected)) {
     throw new TemporalError(
       "REPOSITORY_ROOT_MISMATCH",
       "Configured repository root is not the Git worktree root.",

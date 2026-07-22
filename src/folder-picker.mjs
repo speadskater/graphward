@@ -46,13 +46,13 @@ export function windowsPickerInvocation(initialPath, {
 } = {}) {
   const pickerEnvironment = { ...environment };
   if (initialPath) {
-    pickerEnvironment[WINDOWS_INITIAL_PATH_ENV] = path.resolve(initialPath);
+    pickerEnvironment[WINDOWS_INITIAL_PATH_ENV] = path.win32.resolve(initialPath);
   } else {
     delete pickerEnvironment[WINDOWS_INITIAL_PATH_ENV];
   }
 
   return {
-    executable: path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+    executable: path.win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
     args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-Command", WINDOWS_PICKER],
     options: { env: pickerEnvironment },
   };

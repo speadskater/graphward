@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveRealPath, samePath } from "./path-utils.mjs";
 
 const SCHEMA = `
 PRAGMA foreign_keys = ON;
@@ -294,19 +295,21 @@ export function withTransaction(db, fn) {
 
 export function ensureRepository(db, root, repoId, name) {
   const now = new Date().toISOString();
+  const resolvedRoot = resolveRealPath(root);
   const byId = db.prepare("SELECT * FROM repositories WHERE repo_id = ?").get(repoId);
-  if (byId && path.resolve(byId.root) !== path.resolve(root)) {
-    throw new Error(`repo_id '${repoId}' already belongs to a different checkout: ${byId.root}. Use a distinct repo_id for ${root}.`);
+  if (byId && !samePath(byId.root, resolvedRoot)) {
+    throw new Error(`repo_id '${repoId}' already belongs to a different checkout: ${byId.root}. Use a distinct repo_id for ${resolvedRoot}.`);
   }
-  const byRoot = db.prepare("SELECT * FROM repositories WHERE root = ?").get(root);
+  const byRoot = db.prepare("SELECT * FROM repositories ORDER BY id").all()
+    .find((repository) => samePath(repository.root, resolvedRoot));
   if (byRoot && byRoot.repo_id !== repoId) {
-    throw new Error(`Checkout ${root} is already indexed as repo_id '${byRoot.repo_id}'. Reuse that identifier.`);
+    throw new Error(`Checkout ${resolvedRoot} is already indexed as repo_id '${byRoot.repo_id}'. Reuse that identifier.`);
   }
   db.prepare(`
     INSERT INTO repositories(repo_id, root, name, created_at)
     VALUES (?, ?, ?, ?)
-    ON CONFLICT(repo_id) DO UPDATE SET name = excluded.name
-  `).run(repoId, root, name, now);
+    ON CONFLICT(repo_id) DO UPDATE SET root = excluded.root, name = excluded.name
+  `).run(repoId, resolvedRoot, name, now);
   return db.prepare("SELECT * FROM repositories WHERE repo_id = ?").get(repoId);
 }
 

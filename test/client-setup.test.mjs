@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -55,27 +56,31 @@ test("client adapters build official user-scoped stdio registration commands", (
 });
 
 test("Claude's stable project root overrides the MCP process working directory", () => {
+  const projectDirectory = path.resolve("project");
+  const currentDirectory = path.resolve("current");
   assert.equal(defaultMcpProjectRoot({
-    environment: { CLAUDE_PROJECT_DIR: "C:\\work\\project" },
-    currentDirectory: "C:\\Users\\example",
-  }), "C:\\work\\project");
+    environment: { CLAUDE_PROJECT_DIR: projectDirectory },
+    currentDirectory,
+  }), projectDirectory);
   assert.equal(defaultMcpProjectRoot({
     environment: { CLAUDE_PROJECT_DIR: "relative-project" },
-    currentDirectory: "C:\\Users\\example",
-  }), "C:\\Users\\example");
+    currentDirectory,
+  }), currentDirectory);
 });
 
 test("client skill paths use each agent's user-level discovery directory", () => {
+  const homeDirectory = path.resolve("test-home");
+  const claudeConfigDirectory = path.resolve("claude-config");
   assert.equal(
-    getClientSkillPath("codex", { homeDirectory: "C:\\Users\\tester", environment: {} }),
-    "C:\\Users\\tester\\.agents\\skills\\graphward-first\\SKILL.md",
+    getClientSkillPath("codex", { homeDirectory, environment: {} }),
+    path.join(homeDirectory, ".agents", "skills", "graphward-first", "SKILL.md"),
   );
   assert.equal(
     getClientSkillPath("claude", {
-      homeDirectory: "C:\\Users\\tester",
-      environment: { CLAUDE_CONFIG_DIR: "D:\\ClaudeConfig" },
+      homeDirectory,
+      environment: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
     }),
-    "D:\\ClaudeConfig\\skills\\graphward-first\\SKILL.md",
+    path.join(claudeConfigDirectory, "skills", "graphward-first", "SKILL.md"),
   );
 });
 

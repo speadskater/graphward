@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { readFile, readdir, realpath, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
@@ -13,6 +13,7 @@ import {
 } from "./db.mjs";
 import { detectLanguage, hashText, parseSource } from "./languages.mjs";
 import { inspectRepositoryState } from "./repository-state.mjs";
+import { resolveRealPath, samePath } from "./path-utils.mjs";
 
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const INDEX_FORMAT_VERSION = "8";
@@ -528,7 +529,7 @@ function serializeSymbol(symbol, filePath) {
 export async function indexDirectory(db, requestedRoot, options = {}) {
   const startedAt = performance.now();
   const report = (stage, detail = {}) => options.onProgress?.({ stage, elapsed_ms: Number((performance.now() - startedAt).toFixed(1)), ...detail });
-  const root = await realpath(path.resolve(requestedRoot));
+  const root = resolveRealPath(requestedRoot);
   const info = await stat(root);
   if (!info.isDirectory()) throw new Error(`Not a directory: ${root}`);
   const repoId = options.repoId ?? defaultRepoId(root);
@@ -539,7 +540,7 @@ export async function indexDirectory(db, requestedRoot, options = {}) {
     : null;
   const canReuseFileMetadata = Boolean(
     preexistingRepository
-      && path.resolve(preexistingRepository.root) === root
+      && samePath(preexistingRepository.root, root)
       && !options.force
       && preexistingVersion === INDEX_FORMAT_VERSION,
   );
@@ -983,8 +984,8 @@ export async function indexDirectory(db, requestedRoot, options = {}) {
 }
 
 export function databaseLooksIndexed(db, root) {
-  const resolved = path.resolve(root);
-  return Boolean(db.prepare("SELECT 1 FROM repositories WHERE root = ?").get(resolved));
+  return db.prepare("SELECT root FROM repositories").all()
+    .some((repository) => samePath(repository.root, root));
 }
 
 export function pathExists(value) {

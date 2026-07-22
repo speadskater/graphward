@@ -1,10 +1,5 @@
-import path from "node:path";
+import { pathIdentity } from "./path-utils.mjs";
 import { listIndexedRepositories } from "./queries.mjs";
-
-function comparablePath(value) {
-  const resolved = path.resolve(value);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
 
 function repositoryOrder(left, right) {
   const linked = Number(Boolean(left.index_snapshot?.is_linked_worktree))
@@ -23,7 +18,7 @@ export function groupIndexedProjects(db, repositories = listIndexedRepositories(
 
   for (const repository of repositories) {
     const commonDirectory = metadata.get(repository.repo_id)?.git_common_dir;
-    const key = comparablePath(commonDirectory || repository.root);
+    const key = pathIdentity(commonDirectory || repository.root);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(repository);
   }
