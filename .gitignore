@@ -1,0 +1,20 @@
+.graphward/
+.agents/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+coverage/
+node_modules/
+work/
+
+# Local planning and comparative research; not part of the public project.
+FEATURE_AUDIT.md
+IMPLEMENTATION_PLAN.md
+PARITY_PLAN.md
+
+.DS_Store
+Thumbs.db

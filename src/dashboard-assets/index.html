@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="graphward-token" content="%%GRAPHWARD_SESSION_TOKEN%%">
+  <meta name="graphward-default-repo" content="%%GRAPHWARD_DEFAULT_REPO%%">
+  <title>Graphward Observatory</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">LT</div>
+        <div>
+          <strong>Graphward</strong>
+          <span>Observatory</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item is-active" data-view="overview"><span>01</span>Overview</button>
+        <button class="nav-item" data-view="graph"><span>02</span>Code graph</button>
+        <button class="nav-item" data-view="explorer"><span>03</span>Explorer</button>
+        <button class="nav-item" data-view="quality"><span>04</span>Quality</button>
+        <button class="nav-item" data-view="processes"><span>05</span>Processes</button>
+        <button class="nav-item" data-view="services"><span>06</span>Services</button>
+        <button class="nav-item" data-view="fleet"><span>07</span>Fleet</button>
+        <button class="nav-item" data-view="timeline"><span>08</span>Timeline</button>
+        <button class="nav-item" data-view="decisions"><span>09</span>Decisions</button>
+        <button class="nav-item" data-view="review"><span>10</span>Review</button>
+        <button class="nav-item" data-view="usage"><span>11</span>Efficiency</button>
+      </nav>
+
+      <div class="privacy-card">
+        <span class="pulse" aria-hidden="true"></span>
+        <div><strong>Local-only</strong><small>Loopback · no telemetry</small></div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" aria-label="Toggle navigation">Menu</button>
+        <div class="repo-control">
+          <label for="repo-select">Indexed project</label>
+          <select id="repo-select" aria-label="Indexed project"></select>
+        </div>
+        <div class="topbar-actions">
+          <button class="button button-primary" id="choose-repository">Choose folder</button>
+          <span class="connection-state" id="connection-state"><i></i>Connecting</span>
+          <button class="button button-quiet" id="reload-view">Refresh view</button>
+        </div>
+      </header>
+
+      <section class="view is-visible" data-panel="overview" aria-labelledby="overview-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Repository intelligence</p><h1 id="overview-title">Codebase at a glance</h1></div>
+          <p class="page-intro">Architecture, evidence quality, and current engineering pressure—all from the local index.</p>
+        </div>
+        <div class="metric-grid" id="overview-metrics" aria-live="polite"></div>
+        <div class="dashboard-grid">
+          <article class="panel panel-wide">
+            <div class="panel-heading"><div><p class="eyebrow">Structure</p><h2>Architecture map</h2></div><span class="panel-meta" id="architecture-meta"></span></div>
+            <canvas id="architecture-canvas" class="graph-canvas" aria-label="Architecture map"></canvas>
+            <div class="graph-legend"><span><i class="legend-core"></i>Central symbol</span><span><i class="legend-package"></i>Package</span></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Language mix</p><h2>Indexed surface</h2></div></div>
+            <div id="language-chart" class="language-layout"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Evidence</p><h2>Index health</h2></div></div>
+            <div id="evidence-health" class="stack-list"></div>
+          </article>
+          <article class="panel panel-wide">
+            <div class="panel-heading"><div><p class="eyebrow">Attention</p><h2>Current hotspots</h2></div><button class="text-button" data-jump="quality">Open quality view</button></div>
+            <div id="overview-hotspots" class="data-table-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view graph-view" data-panel="graph" aria-labelledby="graph-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Interactive program topology</p><h1 id="graph-title">Code graph</h1></div>
+          <p class="page-intro">Orbit the indexed symbol graph, inspect package communities, and follow resolved calls and imports without leaving this machine.</p>
+        </div>
+        <div class="code-graph-toolbar" aria-label="Code graph controls">
+          <form class="graph-search" id="graph-search-form">
+            <label for="graph-search-input">Find symbol or file</label>
+            <div><input id="graph-search-input" type="search" maxlength="500" placeholder="Search the rendered graph" autocomplete="off"><button class="button button-primary" type="submit">Focus</button></div>
+          </form>
+          <label class="graph-control" for="graph-density">Detail
+            <select id="graph-density"><option value="2500">Balanced</option><option value="8000" selected>Full index</option><option value="12000">Maximum</option></select>
+          </label>
+          <label class="graph-control" for="graph-color-mode">Color
+            <select id="graph-color-mode"><option value="cluster">Community</option><option value="kind">Symbol kind</option></select>
+          </label>
+          <label class="graph-check"><input id="graph-calls" type="checkbox" checked> Calls</label>
+          <label class="graph-check"><input id="graph-imports" type="checkbox" checked> Imports</label>
+          <label class="graph-check"><input id="graph-tests" type="checkbox" checked> Tests</label>
+          <button class="button button-quiet" id="graph-reset" type="button">Reset camera</button>
+        </div>
+        <article class="panel code-graph-panel">
+          <div class="code-graph-stage">
+            <canvas id="code-graph-canvas" class="code-graph-canvas" aria-label="Interactive three-dimensional graph of indexed symbols, calls, imports, and package communities" aria-describedby="code-graph-help"></canvas>
+            <div class="code-graph-summary" id="code-graph-summary" aria-live="polite"></div>
+            <div class="code-graph-tooltip" id="code-graph-tooltip" hidden></div>
+            <div class="code-graph-loading" id="code-graph-loading">Projecting local graph&hellip;</div>
+          </div>
+          <div class="code-graph-footer">
+            <div class="graph-legend code-graph-legend"><span><i class="legend-function"></i>Function</span><span><i class="legend-method"></i>Method</span><span><i class="legend-class"></i>Class</span><span><i class="legend-module"></i>Module</span><span><i class="legend-call"></i>Call</span><span><i class="legend-import"></i>Import</span></div>
+            <p id="code-graph-help">Drag to orbit · wheel to zoom · click a symbol to inspect · double-click to open it in Explorer</p>
+          </div>
+          <aside class="code-graph-detail" id="code-graph-detail" aria-live="polite"><div class="empty-state">Select a point to inspect its symbol and graph neighborhood.</div></aside>
+        </article>
+      </section>
+
+      <section class="view" data-panel="explorer" aria-labelledby="explorer-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Hybrid local retrieval</p><h1 id="explorer-title">Code explorer</h1></div>
+          <p class="page-intro">Search intent, identifiers, signatures, and bodies without sending code anywhere.</p>
+        </div>
+        <form class="search-bar" id="code-search-form">
+          <input id="code-search-input" type="search" maxlength="2000" placeholder="Try: middleware that checks competition roles" autocomplete="off" aria-label="Search indexed code">
+          <button class="button button-primary" type="submit">Search</button>
+        </form>
+        <div class="explorer-layout">
+          <aside class="results-panel" id="search-results" aria-live="polite"><div class="empty-state">Search for a symbol or behavior to begin.</div></aside>
+          <article class="symbol-panel" id="symbol-detail"><div class="empty-state">Select a result to inspect source, relationships, and blast radius.</div></article>
+        </div>
+      </section>
+
+      <section class="view" data-panel="quality" aria-labelledby="quality-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Static quality evidence</p><h1 id="quality-title">Engineering pressure</h1></div>
+          <p class="page-intro">Complexity and graph evidence are signals, not runtime proof. Every result keeps its caveats.</p>
+        </div>
+        <div class="segmented" id="quality-tabs" role="tablist" aria-label="Quality analysis">
+          <button class="is-active" data-quality="hotspots">Hotspots</button>
+          <button data-quality="complexity">Complexity</button>
+          <button data-quality="dead">Dead-code candidates</button>
+          <button data-quality="bridges">Bridge symbols</button>
+          <button data-quality="style">Style fingerprint</button>
+        </div>
+        <article class="panel"><div id="quality-content" class="data-table-wrap" aria-live="polite"></div></article>
+      </section>
+
+      <section class="view" data-panel="processes" aria-labelledby="processes-title">
+        <div class="page-heading with-action">
+          <div><p class="eyebrow">Persistent static flows</p><h1 id="processes-title">Process memory</h1></div>
+          <button class="button button-primary" id="refresh-processes">Refresh inferred processes</button>
+        </div>
+        <div class="split-layout">
+          <aside class="results-panel" id="process-list"></aside>
+          <article class="panel flow-panel" id="process-detail"><div class="empty-state">Choose a process to inspect its resolved call path.</div></article>
+        </div>
+      </section>
+
+      <section class="view" data-panel="services" aria-labelledby="services-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Static service topology</p><h1 id="services-title">Service map</h1></div>
+          <p class="page-intro">Repositories, explicit service identities, and resolved protocol operations.</p>
+        </div>
+        <article class="panel">
+          <canvas id="service-canvas" class="graph-canvas graph-canvas-tall" aria-label="Service topology graph"></canvas>
+          <div id="service-summary" class="summary-strip"></div>
+        </article>
+      </section>
+
+      <section class="view" data-panel="fleet" aria-labelledby="fleet-title">
+        <div class="page-heading with-action">
+          <div><p class="eyebrow">Local multi-agent coordination</p><h1 id="fleet-title">Fleet control room</h1></div>
+          <div class="fleet-controls">
+            <label for="fleet-branch">Coordination branch</label>
+            <select id="fleet-branch"><option value="">All branches</option></select>
+            <button class="button button-primary" id="refresh-fleet">Refresh fleet</button>
+          </div>
+        </div>
+        <p class="fleet-intro">Live intents, overlaps, leases, escalations, and completed episodes from this local database. Agents appear after publishing an intent through MCP.</p>
+        <div class="metric-grid fleet-metrics" id="fleet-metrics"></div>
+        <article class="panel fleet-map-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Live coordination</p><h2>Agent and touched-scope graph</h2></div><span class="panel-meta" id="fleet-generated"></span></div>
+          <canvas id="fleet-canvas" class="graph-canvas graph-canvas-tall" aria-label="Fleet graph of active agents, intents, leases, and conflicts"></canvas>
+          <div class="graph-legend fleet-legend"><span><i class="legend-agent"></i>Agent</span><span><i class="legend-target"></i>Code scope</span><span><i class="legend-intent"></i>Intent</span><span><i class="legend-lease"></i>Lease</span><span><i class="legend-conflict"></i>Overlap</span></div>
+        </article>
+        <div class="fleet-sections">
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">Needs judgment</p><h2>Decisions</h2></div></div><div id="fleet-decisions" class="fleet-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">In flight</p><h2>Work</h2></div></div><div id="fleet-work" class="fleet-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">Coordination pressure</p><h2>Safety</h2></div></div><div id="fleet-safety" class="fleet-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">Durable local trail</p><h2>Activity</h2></div></div><div id="fleet-activity" class="fleet-list"></div></article>
+        </div>
+      </section>
+
+      <section class="view" data-panel="timeline" aria-labelledby="timeline-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Temporal memory</p><h1 id="timeline-title">Repository timeline</h1></div>
+          <p class="page-intro">Git and working-tree episodes appear only after explicit bounded ingestion.</p>
+        </div>
+        <div class="metric-grid compact" id="timeline-metrics"></div>
+        <article class="panel"><div id="timeline-list" class="timeline-list"></div></article>
+      </section>
+
+      <section class="view" data-panel="decisions" aria-labelledby="decisions-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Recorded rationale</p><h1 id="decisions-title">Decision memory</h1></div>
+          <p class="page-intro">Only explicit local evidence is shown. No result means CannotProve—not permission.</p>
+        </div>
+        <form class="search-bar" id="decision-search-form">
+          <input id="decision-search-input" type="search" maxlength="2000" placeholder="Search choices, bans, conventions, and contracts" autocomplete="off" aria-label="Search decision memory">
+          <button class="button button-primary" type="submit">Recall</button>
+        </form>
+        <div id="decision-results" class="card-list"><div class="empty-state">Describe the decision or constraint you need to recall.</div></div>
+      </section>
+
+      <section class="view" data-panel="review" aria-labelledby="review-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">Local change review</p><h1 id="review-title">Review a diff</h1></div>
+          <p class="page-intro">Graph impact, quality, processes, history, and recorded contracts—composed locally.</p>
+        </div>
+        <div class="review-layout">
+          <form class="panel review-input" id="review-form">
+            <label for="review-diff">Unified diff</label>
+            <textarea id="review-diff" maxlength="2100000" spellcheck="false" placeholder="Paste a canonical unified diff here…"></textarea>
+            <label class="check-row"><input id="review-cochange" type="checkbox" checked> Include bounded Git co-change evidence</label>
+            <button class="button button-primary" type="submit">Run local review</button>
+          </form>
+          <article class="panel" id="review-results"><div class="empty-state">Review findings will appear here. Repository source is never modified.</div></article>
+        </div>
+      </section>
+
+      <section class="view" data-panel="usage" aria-labelledby="usage-title">
+        <div class="page-heading with-action">
+          <div><p class="eyebrow">Measured local usage</p><h1 id="usage-title">Efficiency ledger</h1></div>
+          <label class="period-control" for="usage-period">Window
+            <select id="usage-period">
+              <option value="24h">24 hours</option>
+              <option value="7d">7 days</option>
+              <option value="30d" selected>30 days</option>
+              <option value="90d">90 days</option>
+              <option value="all">All retained</option>
+            </select>
+          </label>
+        </div>
+        <p class="page-intro usage-intro">Calls and byte sizes are measured. Token and context-reduction figures are transparent estimates, never billing data.</p>
+        <div class="metric-grid" id="usage-metrics" aria-live="polite"></div>
+        <div class="dashboard-grid">
+          <article class="panel panel-wide">
+            <div class="panel-heading"><div><p class="eyebrow">Tool activity</p><h2>Most-used tools</h2></div><span class="panel-meta" id="usage-generated"></span></div>
+            <div id="usage-tools" class="data-table-wrap"></div>
+          </article>
+          <article class="panel panel-wide">
+            <div class="panel-heading"><div><p class="eyebrow">Project scope</p><h2>Checkout activity</h2></div></div>
+            <div id="usage-repositories" class="data-table-wrap"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Interpretation</p><h2>What the estimate means</h2></div></div>
+            <div id="usage-methodology" class="methodology-list"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/code-graph.js" defer></script>
+  <script src="/app.js" defer></script>
+</body>
+</html>

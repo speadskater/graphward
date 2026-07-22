@@ -1,0 +1,54 @@
+{
+  "name": "graphward",
+  "version": "0.10.1",
+  "description": "Private, local-first code intelligence for coding agents and humans.",
+  "type": "module",
+  "license": "MIT",
+  "author": "speadskater",
+  "homepage": "https://github.com/speadskater/graphward#readme",
+  "bugs": {
+    "url": "https://github.com/speadskater/graphward/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/speadskater/graphward.git"
+  },
+  "keywords": [
+    "code-intelligence",
+    "code-graph",
+    "mcp",
+    "codex",
+    "claude-code",
+    "static-analysis",
+    "local-first"
+  ],
+  "files": [
+    "src/",
+    "skills/",
+    "scripts/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "graphward": "./src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/indexer.test.mjs test/mcp.test.mjs test/python-parser.test.mjs test/javascript-relationships.test.mjs test/dom-selector-relationships.test.mjs test/workflow-analysis.test.mjs test/semantic-search.test.mjs test/local-memory.test.mjs test/temporal-memory.test.mjs test/service-topology.test.mjs test/quality-analysis.test.mjs test/process-memory.test.mjs test/review-engine.test.mjs test/advanced-tools.test.mjs test/dashboard.test.mjs test/fleet.test.mjs test/usage.test.mjs test/system-resources.test.mjs test/folder-picker.test.mjs test/client-setup.test.mjs",
+    "setup": "node ./src/cli.mjs setup",
+    "start": "node ./src/cli.mjs serve --index",
+    "dashboard": "node ./src/cli.mjs dashboard",
+    "benchmark:parse": "node ./scripts/benchmark-parse.mjs"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "packageManager": "npm@11.7.0",
+  "dependencies": {
+    "@babel/parser": "^8.0.4"
+  }
+}
