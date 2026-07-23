@@ -21,7 +21,9 @@ export class WatchManager {
     let timer = null;
     let indexing = false;
     let queued = false;
+    let active = true;
     const reindex = async () => {
+      if (!active) return;
       if (indexing) {
         queued = true;
         return;
@@ -34,19 +36,29 @@ export class WatchManager {
         this.log(`watch index failed: ${error.message}`);
       } finally {
         indexing = false;
-        if (queued) {
+        if (active && queued) {
           queued = false;
           void reindex();
         }
       }
     };
     const watcher = watch(resolved, { recursive: true }, (_eventType, filename) => {
-      if (isIgnored(filename)) return;
+      if (!active || isIgnored(filename)) return;
       clearTimeout(timer);
-      timer = setTimeout(() => void reindex(), options.debounceMs ?? 600);
+      timer = setTimeout(() => {
+        timer = null;
+        void reindex();
+      }, options.debounceMs ?? 600);
     });
     watcher.on("error", (error) => this.log(`watcher error: ${error.message}`));
-    this.watchers.set(resolved, { watcher, startedAt: new Date().toISOString() });
+    const stop = () => {
+      active = false;
+      queued = false;
+      clearTimeout(timer);
+      timer = null;
+      watcher.close();
+    };
+    this.watchers.set(resolved, { watcher, stop, startedAt: new Date().toISOString() });
     return { ok: true, path: resolved, already_watching: false };
   }
 
@@ -54,7 +66,7 @@ export class WatchManager {
     const resolved = path.resolve(root);
     const entry = this.watchers.get(resolved);
     if (!entry) return { ok: true, path: resolved, was_watching: false };
-    entry.watcher.close();
+    entry.stop();
     this.watchers.delete(resolved);
     return { ok: true, path: resolved, was_watching: true };
   }
@@ -67,7 +79,7 @@ export class WatchManager {
   }
 
   close() {
-    for (const entry of this.watchers.values()) entry.watcher.close();
+    for (const entry of this.watchers.values()) entry.stop();
     this.watchers.clear();
   }
 }

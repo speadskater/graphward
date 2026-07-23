@@ -14,6 +14,7 @@ const MAX_QUERY_LENGTH = 4_096;
 const MAX_TOKENIZED_TEXT = 100_000;
 const CONCEPT_SCORE_WEIGHT = 0.15;
 const IDENTIFIER_COVERAGE_WEIGHT = 0.2;
+const FUZZY_IDENTIFIER_SCORE_WEIGHT = 0.4;
 const VECTOR_SCORE_WEIGHT = 0.25;
 const LEXICAL_SCORE_WEIGHT = 0.45;
 const PRODUCTION_SCORE_WEIGHT = 0.12;
@@ -434,6 +435,31 @@ function identifierCoverageScore(document, queryTokens, queryConcepts) {
   return covered / document.identifierTokens.size;
 }
 
+function fuzzyTokenSimilarity(left, right) {
+  if (left === right || left.length < 4 || right.length < 4 || Math.abs(left.length - right.length) > 2) return 0;
+  const leftGrams = new Set(characterNgrams(left));
+  const rightGrams = new Set(characterNgrams(right));
+  let overlap = 0;
+  for (const gram of leftGrams) {
+    if (rightGrams.has(gram)) overlap += 1;
+  }
+  return (2 * overlap) / (leftGrams.size + rightGrams.size);
+}
+
+function fuzzyIdentifierScore(document, queryTokens) {
+  const boundedQuery = queryTokens.filter((token) => token.length <= 32).slice(0, 64);
+  if (!boundedQuery.length || !document.identifierTokens.size) return 0;
+  let matched = 0;
+  for (const queryToken of boundedQuery) {
+    let best = 0;
+    for (const identifierToken of document.identifierTokens) {
+      best = Math.max(best, fuzzyTokenSimilarity(queryToken, identifierToken));
+    }
+    if (best >= 0.55) matched += best;
+  }
+  return matched / Math.max(boundedQuery.length, document.identifierTokens.size);
+}
+
 function bm25Score(document, queryTokens, lexicalIdf, averageLength, documentCount) {
   const k1 = 1.2;
   const b = 0.75;
@@ -590,10 +616,16 @@ export class HybridSearchIndex {
     const queryConcepts = conceptsIn(query);
     const filtered = this.documents.filter((document) => matchesFilter(document, options));
     const externalScore = (document) => Math.max(...documentKeys(document).map((key) => external.get(key) ?? 0));
+    const fuzzyScores = new Map();
+    const fuzzyScore = (document) => {
+      if (!fuzzyScores.has(document.key)) fuzzyScores.set(document.key, fuzzyIdentifierScore(document, queryTokens));
+      return fuzzyScores.get(document.key);
+    };
     let candidates = filtered;
     if (!this.provider) {
       const narrowed = filtered.filter((document) => externalScore(document) > 0
         || queryTokens.some((token) => document.lexicalTerms.has(token))
+        || fuzzyScore(document) > 0
         || [...queryConcepts].some((concept) => document.concepts.has(concept)));
       if (narrowed.length >= Math.min(filtered.length, (limit + offset) * 3)) candidates = narrowed;
     }
@@ -610,6 +642,7 @@ export class HybridSearchIndex {
         document,
         exact: exactIdentifierScore(document, query),
         identifierCoverage: identifierCoverageScore(document, queryTokens, queryConcepts),
+        fuzzyIdentifier: fuzzyScore(document),
         lexical,
         vectorSemantic,
         semantic: vectorSemantic * 0.7 + concept * 0.3,
@@ -623,6 +656,7 @@ export class HybridSearchIndex {
       const lexical = maxLexical ? item.lexical / maxLexical : 0;
       item.score = item.exact * 2
         + item.identifierCoverage * IDENTIFIER_COVERAGE_WEIGHT
+        + item.fuzzyIdentifier * FUZZY_IDENTIFIER_SCORE_WEIGHT
         + lexical * LEXICAL_SCORE_WEIGHT
         + item.vectorSemantic * VECTOR_SCORE_WEIGHT
         + Math.min(item.concept * CONCEPT_SCORE_WEIGHT, CONCEPT_SCORE_WEIGHT)
@@ -652,6 +686,7 @@ export class HybridSearchIndex {
         score: item.score,
         scores: {
           exact: item.exact,
+          fuzzy_identifier: item.fuzzyIdentifier,
           lexical: item.normalizedLexical,
           semantic: item.semantic,
           concept: item.concept,
@@ -659,6 +694,7 @@ export class HybridSearchIndex {
           contributions: {
             exact: item.exact * 2,
             identifier_coverage: item.identifierCoverage * IDENTIFIER_COVERAGE_WEIGHT,
+            fuzzy_identifier: item.fuzzyIdentifier * FUZZY_IDENTIFIER_SCORE_WEIGHT,
             lexical: item.normalizedLexical * LEXICAL_SCORE_WEIGHT,
             vector: item.vectorSemantic * VECTOR_SCORE_WEIGHT,
             concept: Math.min(item.concept * CONCEPT_SCORE_WEIGHT, CONCEPT_SCORE_WEIGHT),

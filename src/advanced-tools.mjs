@@ -830,72 +830,117 @@ function promoteCallGraphNeighbors(db, repository, rankedResults, pageSize) {
     : rankedResults;
 }
 
-async function hybridFindCode(db, args) {
-  const repository = resolveRepository(db, args.repo_id ?? null);
+const HYBRID_GRAPH_WINDOW_LIMIT = 101;
+const GRAPH_PROMOTION_RANKING_SIZE = 6;
+
+async function stableHybridSearchPage(index, db, repository, query, searchOptions, cursor, requested) {
+  if (cursor >= HYBRID_GRAPH_WINDOW_LIMIT) {
+    return index.search(query, { ...searchOptions, limit: requested, offset: cursor });
+  }
+  const rankedWindow = await index.search(query, {
+    ...searchOptions,
+    limit: HYBRID_GRAPH_WINDOW_LIMIT,
+    offset: 0,
+  });
+  const rerankedWindow = promoteCallGraphNeighbors(
+    db,
+    repository,
+    rankedWindow,
+    GRAPH_PROMOTION_RANKING_SIZE,
+  );
+  const page = rerankedWindow.slice(
+    cursor,
+    Math.min(HYBRID_GRAPH_WINDOW_LIMIT, cursor + requested),
+  );
+  if (rankedWindow.length < HYBRID_GRAPH_WINDOW_LIMIT || page.length >= requested) return page;
+  const tail = await index.search(query, {
+    ...searchOptions,
+    limit: requested - page.length,
+    offset: HYBRID_GRAPH_WINDOW_LIMIT,
+  });
+  return [...page, ...tail];
+}
+
+function normalizedFindCodeRequest(args) {
   if (typeof args.query !== "string" || !args.query.trim()) throw new Error("query is required and must be a string");
   if (args.query.length > 4_096) throw new Error("query must be at most 4096 UTF-16 code units");
   const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
   const cursor = Math.max(0, Math.min(Number(args.cursor) || 0, 10_000));
   const contextLines = Math.max(0, Math.min(args.context_lines == null ? 4 : Number(args.context_lines) || 0, 20));
-  const requested = Math.min(101, limit + 1);
+  return { limit, cursor, contextLines, requested: Math.min(101, limit + 1) };
+}
+
+function findCodeFilters(args) {
+  return {
+    filePath: args.file_path ?? null,
+    kind: args.kind ?? null,
+  };
+}
+
+function lexicalFallbackPage(db, repository, args, filters, cached, request) {
+  const lexicalPage = findCode(db, {
+    repoId: repository.repo_id,
+    query: args.query,
+    ...filters,
+    limit: request.requested,
+    offset: request.cursor,
+  });
+  const hasMore = lexicalPage.length > request.limit;
+  const results = lexicalPage.slice(0, request.limit).map((result) => ({
+    ...result,
+    ...resultEvidence(repository, result, args.query, request.contextLines),
+  }));
+  return {
+    repo_id: repository.repo_id,
+    mode: "lexical-local-fallback",
+    index: {
+      documents: cached.documents,
+      indexed_documents: 0,
+      cache_hit: cached.cacheHit,
+      build_ms: cached.buildMs,
+      truncated: true,
+      reason: "max_hybrid_documents",
+      maximum: MAX_HYBRID_DOCUMENTS,
+    },
+    query_ms: 0,
+    page: {
+      cursor: request.cursor,
+      next_cursor: hasMore ? request.cursor + results.length : null,
+      has_more: hasMore,
+    },
+    results,
+  };
+}
+
+async function hybridFindCode(db, args) {
+  const repository = resolveRepository(db, args.repo_id ?? null);
+  const request = normalizedFindCodeRequest(args);
+  const filters = findCodeFilters(args);
   const lexicalResults = findCode(db, {
     repoId: repository.repo_id,
     query: args.query,
-    filePath: args.file_path ?? null,
-    kind: args.kind ?? null,
-    limit: Math.min(1000, Math.max((cursor + requested) * 5, 50)),
+    ...filters,
+    // Keep the lexical fusion set fixed across cursor calls. Growing it with the
+    // cursor changes scores between pages and can duplicate or skip results.
+    limit: 1000,
   });
   const cached = await semanticIndex(db, repository);
-  if (cached.overflow) {
-    const lexicalPage = findCode(db, {
-      repoId: repository.repo_id,
-      query: args.query,
-      filePath: args.file_path ?? null,
-      kind: args.kind ?? null,
-      limit: requested,
-      offset: cursor,
-    });
-    const hasMore = lexicalPage.length > limit;
-    const results = lexicalPage.slice(0, limit).map((result) => ({
-      ...result,
-      ...resultEvidence(repository, result, args.query, contextLines),
-    }));
-    return {
-      repo_id: repository.repo_id,
-      mode: "lexical-local-fallback",
-      index: {
-        documents: cached.documents,
-        indexed_documents: 0,
-        cache_hit: cached.cacheHit,
-        build_ms: cached.buildMs,
-        truncated: true,
-        reason: "max_hybrid_documents",
-        maximum: MAX_HYBRID_DOCUMENTS,
-      },
-      query_ms: 0,
-      page: { cursor, next_cursor: hasMore ? cursor + results.length : null, has_more: hasMore },
-      results,
-    };
-  }
+  if (cached.overflow) return lexicalFallbackPage(db, repository, args, filters, cached, request);
   const started = performance.now();
-  const graphWindowLimit = Math.min(101, Math.max(cursor + requested, 50));
-  const canGraphRerank = cursor + requested <= 101;
-  const searchOptions = {
-    limit: canGraphRerank ? graphWindowLimit : requested,
-    offset: canGraphRerank ? 0 : cursor,
-    lexicalResults,
-  };
-  if (args.file_path != null) searchOptions.filePath = args.file_path;
-  if (args.kind != null) searchOptions.kind = args.kind;
-  const rankedResults = await cached.index.search(args.query, searchOptions);
-  const rerankedResults = canGraphRerank
-    ? promoteCallGraphNeighbors(db, repository, rankedResults, limit)
-    : rankedResults;
-  const pageResults = canGraphRerank
-    ? rerankedResults.slice(cursor, cursor + requested)
-    : rerankedResults;
-  const hasMore = pageResults.length > limit;
-  const results = pageResults.slice(0, limit).map((result) => ({
+  const searchOptions = { lexicalResults };
+  if (filters.filePath != null) searchOptions.filePath = filters.filePath;
+  if (filters.kind != null) searchOptions.kind = filters.kind;
+  const pageResults = await stableHybridSearchPage(
+    cached.index,
+    db,
+    repository,
+    args.query,
+    searchOptions,
+    request.cursor,
+    request.requested,
+  );
+  const hasMore = pageResults.length > request.limit;
+  const results = pageResults.slice(0, request.limit).map((result) => ({
     id: result.id,
     stable_key: result.stableKey,
     name: result.name,
@@ -912,7 +957,7 @@ async function hybridFindCode(db, args) {
     embedding_provider: result.embeddingProvider,
     embedding_provider_trust: result.embeddingProviderTrust,
     concept_expansion: result.conceptExpansion,
-    ...resultEvidence(repository, { file_path: result.filePath, start_line: result.startLine, end_line: result.endLine }, args.query, contextLines),
+    ...resultEvidence(repository, { file_path: result.filePath, start_line: result.startLine, end_line: result.endLine }, args.query, request.contextLines),
   }));
   return {
     repo_id: repository.repo_id,
@@ -926,7 +971,11 @@ async function hybridFindCode(db, args) {
       maximum: MAX_HYBRID_DOCUMENTS,
     },
     query_ms: Number((performance.now() - started).toFixed(1)),
-    page: { cursor, next_cursor: hasMore ? cursor + results.length : null, has_more: hasMore },
+    page: {
+      cursor: request.cursor,
+      next_cursor: hasMore ? request.cursor + results.length : null,
+      has_more: hasMore,
+    },
     results,
   };
 }
