@@ -8,6 +8,7 @@ import { changePreflight, findDependencyPath, inferExecutionFlows } from "./work
 import { ADVANCED_TOOL_DEFINITIONS, callAdvancedTool } from "./advanced-tools.mjs";
 import { getIndexFreshness } from "./repository-state.mjs";
 import { getUsageStats, recordToolUsage } from "./usage.mjs";
+import { compactMcpOutput, withResponseDetail } from "./response-compaction.mjs";
 import {
   getApiTopology,
   findSymbol,
@@ -30,7 +31,7 @@ const integerProperty = (description, minimum = 1, maximum = 500) => ({ type: "i
 const AUTO_INDEX_EXEMPT_TOOLS = new Set(["index_directory", "watch_directory", "unwatch_directory", "list_watched_paths"]);
 const AUTO_SCOPE_EXEMPT_TOOLS = new Set(["list_indexed_repositories", "get_cross_repository_topology", "get_service_diagram", "list_service_identities"]);
 
-export const TOOL_DEFINITIONS = [
+const TOOL_DEFINITION_LIST = [
   {
     name: "index_directory",
     description: "Index or incrementally refresh a local source-code repository. All parsing and storage remain on this machine.",
@@ -53,7 +54,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "get_usage_stats",
-    description: "Return measured local tool-call usage and conservatively modeled MCP context efficiency. Token figures are explicitly approximate and never billing data.",
+    description: "Return measured local tool-call usage and full-file-equivalent compression. Token figures are explicitly approximate and never billing data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -189,7 +190,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "find_code",
-    description: "Hybrid local search over identifiers, BM25 evidence, code-aware feature vectors, and bounded concept hints. Ranking evidence is returned and no query or result leaves the machine.",
+    description: "Hybrid local search over identifiers, BM25 evidence, code-aware feature vectors, and bounded concept hints. Compact MCP pages return at most five candidates; request full detail only for ranking diagnostics. No query or result leaves the machine.",
     inputSchema: {
       type: "object",
       properties: {
@@ -448,6 +449,8 @@ export const TOOL_DEFINITIONS = [
   ...ADVANCED_TOOL_DEFINITIONS,
 ];
 
+export const TOOL_DEFINITIONS = TOOL_DEFINITION_LIST.map(withResponseDetail);
+
 function normalizeArgs(args = {}) {
   return {
     ...args,
@@ -637,7 +640,8 @@ export async function callTool(name, args = {}, context) {
   const recordUsage = context?.surface === "mcp";
   try {
     const prepared = await ensureMcpRepository(name, args, context);
-    const output = attachAutoIndex(await dispatchTool(name, prepared.args, context), prepared.autoIndex);
+    const fullOutput = attachAutoIndex(await dispatchTool(name, prepared.args, context), prepared.autoIndex);
+    const output = recordUsage ? compactMcpOutput(name, fullOutput, args, context) : fullOutput;
     if (recordUsage) {
       try {
         recordToolUsage(context.db, {

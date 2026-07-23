@@ -14,6 +14,9 @@ All notable user-facing changes are documented here. Graphward follows semantic 
 ### Changed
 
 - Renamed the pre-public project and every runtime identity from Localtrace to Graphward.
+- Made MCP responses compact by default, with bounded search pages, reduced snapshot/ranking metadata, removal of evidence-preview duplication, session evidence deduplication, and opt-in full diagnostics.
+- Added bounded route-handler symbols, production-aware natural-language ranking, centered term evidence, call-graph-aware result promotion, and deterministic retrieval-quality benchmarks that require every expected target and report target recall plus mean reciprocal rank.
+- Added a manifest-driven offline system evaluation suite covering retrieval, symbol resolution, graph impact, dependency paths, API topology, and response-efficiency budgets with assertion-level diagnostics.
 - Prepared the package, documentation, policies, templates, and CI for public development.
 - Canonicalized repository paths across Windows short/long path forms and made platform-specific setup tests portable.
 

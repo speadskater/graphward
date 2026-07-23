@@ -76,6 +76,56 @@ test("natural-language concepts retrieve code with no exact query-term overlap",
   assert.equal(transformation[0].name, "formatProfilePayload");
 });
 
+test("natural behavior queries prefer production evidence over test-name matches", async () => {
+  const index = await createHybridSearchIndex([
+    {
+      id: "production",
+      name: "POST /competitions/:id/transfer-owner",
+      qualified_name: "<route:POST:/competitions/{}/transfer-owner>",
+      kind: "RouteHandler",
+      file_path: "server/routes/competitions.js",
+      body_text: "authorize account staff before transferring competition ownership",
+    },
+    {
+      id: "test",
+      name: "competition-owner-transfer.test.js",
+      qualified_name: "<module:server/__tests__/competition-owner-transfer.test.js>",
+      kind: "Module",
+      file_path: "server/__tests__/competition-owner-transfer.test.js",
+      body_text: "test competition ownership transfer authorization staff role privilege",
+    },
+  ]);
+  const results = await index.search("competition ownership transfer authorization staff role privilege", { limit: 2 });
+  assert.equal(results[0].id, "production");
+  assert.equal(results[0].scores.contributions.production, 0.12);
+  assert.equal(results[1].scores.contributions.production, 0);
+  assert.equal(results[1].scores.contributions.test_penalty, -0.25);
+});
+
+test("long audit queries retain covered identifiers instead of diluting them", async () => {
+  const index = await createHybridSearchIndex([
+    {
+      id: "optional-auth",
+      name: "optionalAuth",
+      qualified_name: "optionalAuth",
+      kind: "Function",
+      file_path: "server/middleware/auth.js",
+      body_text: "verify a cookie and continue when no identity is present",
+    },
+    {
+      id: "generic",
+      name: "publicMutationHandler",
+      qualified_name: "publicMutationHandler",
+      kind: "Function",
+      file_path: "server/routes/public.js",
+      body_text: "public post mutation bypass view as authentication optional access",
+    },
+  ]);
+  const results = await index.search("optional authentication view as mutation public post bypass", { limit: 2 });
+  const optional = results.find((result) => result.id === "optional-auth");
+  assert.equal(optional.scores.contributions.identifier_coverage, 0.2);
+});
+
 test("exact identifiers remain dominant and results are deduplicated", async () => {
   const duplicate = { ...DOCUMENTS[0], body_text: "" };
   const index = await createHybridSearchIndex([...DOCUMENTS, duplicate]);

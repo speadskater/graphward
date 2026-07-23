@@ -26,7 +26,7 @@ async function handleRequest(request, context) {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "graphward", title: "Graphward Code Memory", version: VERSION },
-          instructions: "Use Graphward directly from any project. On the first repository-scoped call, Graphward indexes a missing current project, reports progress when supported, waits for completion, and then returns the requested result. Use find_symbol/find_code followed by get_symbol_context or get_impact. Record durable rationale with record_decision.",
+          instructions: "Use Graphward directly from any project. On the first repository-scoped call, Graphward indexes a missing current project and waits for completion. Responses are compact by default; request response_detail=full only for ranking diagnostics. Use the smallest sufficient set of calls and stop once the task has enough evidence.",
         };
         break;
       }
@@ -98,7 +98,12 @@ async function handleRequest(request, context) {
 }
 
 export async function serveMcp(context) {
-  const mcpContext = { ...context, surface: "mcp", autoIndexJobs: new Map() };
+  const mcpContext = {
+    ...context,
+    surface: "mcp",
+    autoIndexJobs: new Map(),
+    responseEvidenceHashes: new Set(),
+  };
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
   console.error(`Graphward ${VERSION} MCP server running on stdio (offline)`);
   for await (const line of input) {

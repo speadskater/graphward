@@ -13,8 +13,11 @@ const MAX_EXTERNAL_RESULTS = 20_000;
 const MAX_QUERY_LENGTH = 4_096;
 const MAX_TOKENIZED_TEXT = 100_000;
 const CONCEPT_SCORE_WEIGHT = 0.15;
+const IDENTIFIER_COVERAGE_WEIGHT = 0.2;
 const VECTOR_SCORE_WEIGHT = 0.25;
 const LEXICAL_SCORE_WEIGHT = 0.45;
+const PRODUCTION_SCORE_WEIGHT = 0.12;
+const TEST_SOURCE_PENALTY = 0.25;
 const RRF_K = 60;
 
 const STOP_WORDS = new Set([
@@ -417,6 +420,20 @@ function exactIdentifierScore(document, query) {
   return 0;
 }
 
+function identifierCoverageScore(document, queryTokens, queryConcepts) {
+  if (!document.identifierTokens.size) return 0;
+  let covered = 0;
+  for (const identifierToken of document.identifierTokens) {
+    if (queryTokens.includes(identifierToken)) {
+      covered += 1;
+      continue;
+    }
+    const tokenConcepts = TOKEN_CONCEPTS.get(identifierToken) ?? [];
+    if (tokenConcepts.some((concept) => queryConcepts.has(concept))) covered += 1;
+  }
+  return covered / document.identifierTokens.size;
+}
+
 function bm25Score(document, queryTokens, lexicalIdf, averageLength, documentCount) {
   const k1 = 1.2;
   const b = 0.75;
@@ -451,6 +468,13 @@ function matchesFilter(document, options) {
     if (!document.filePath.normalize("NFC").replaceAll("\\", "/").toLowerCase().includes(requested)) return false;
   }
   return true;
+}
+
+function isProductionDocument(document) {
+  const filePath = document.filePath.normalize("NFC").replaceAll("\\", "/").toLowerCase();
+  const basename = filePath.split("/").at(-1) ?? "";
+  return !filePath.split("/").some((part) => ["test", "tests", "__tests__", "spec", "specs", "e2e"].includes(part))
+    && !/\.(?:test|spec)\.[^.]+$/i.test(basename);
 }
 
 function validateOptionsObject(options, name) {
@@ -576,6 +600,7 @@ export class HybridSearchIndex {
     const scored = [];
     let maxLexical = 0;
     for (const document of candidates) {
+      const production = isProductionDocument(document);
       const lexical = bm25Score(document, queryTokens, this.lexicalIdf, this.averageLength, this.documents.length);
       const conceptMatches = [...queryConcepts].filter((concept) => document.concepts.has(concept)).length;
       const concept = queryConcepts.size ? conceptMatches / queryConcepts.size : 0;
@@ -584,20 +609,26 @@ export class HybridSearchIndex {
       scored.push({
         document,
         exact: exactIdentifierScore(document, query),
+        identifierCoverage: identifierCoverageScore(document, queryTokens, queryConcepts),
         lexical,
         vectorSemantic,
         semantic: vectorSemantic * 0.7 + concept * 0.3,
         concept,
         external: externalScore(document),
+        production: production ? 1 : 0,
+        testPenalty: options.filePath || production ? 0 : TEST_SOURCE_PENALTY,
       });
     }
     for (const item of scored) {
       const lexical = maxLexical ? item.lexical / maxLexical : 0;
       item.score = item.exact * 2
+        + item.identifierCoverage * IDENTIFIER_COVERAGE_WEIGHT
         + lexical * LEXICAL_SCORE_WEIGHT
         + item.vectorSemantic * VECTOR_SCORE_WEIGHT
         + Math.min(item.concept * CONCEPT_SCORE_WEIGHT, CONCEPT_SCORE_WEIGHT)
-        + item.external * 0.15;
+        + item.external * 0.15
+        + item.production * PRODUCTION_SCORE_WEIGHT
+        - item.testPenalty;
       item.normalizedLexical = lexical;
     }
     scored.sort((left, right) => right.score - left.score
@@ -627,10 +658,13 @@ export class HybridSearchIndex {
           external: item.external,
           contributions: {
             exact: item.exact * 2,
+            identifier_coverage: item.identifierCoverage * IDENTIFIER_COVERAGE_WEIGHT,
             lexical: item.normalizedLexical * LEXICAL_SCORE_WEIGHT,
             vector: item.vectorSemantic * VECTOR_SCORE_WEIGHT,
             concept: Math.min(item.concept * CONCEPT_SCORE_WEIGHT, CONCEPT_SCORE_WEIGHT),
             external: item.external * 0.15,
+            production: item.production * PRODUCTION_SCORE_WEIGHT,
+            test_penalty: -item.testPenalty,
           },
         },
         embeddingProvider: this.providerId,

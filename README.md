@@ -240,6 +240,14 @@ For Fleet-aware work, tell each agent: `Before editing, call fleet_publish_inten
 
 ## MCP tools
 
+MCP responses are compact by default. `find_code` returns at most five candidates per compact page, omits ranking internals and literal previews duplicated by the adjacent source window, and retains bounded source evidence plus stable symbol identity. Repository-scoped calls return only the freshness fields needed to judge trust, while exact source evidence repeated in one MCP session is returned as a stable content reference instead of being transmitted again. Pass `response_detail: "full"` only when complete ranking diagnostics or full index snapshots are actually needed. Dashboard and internal calls retain their complete response objects.
+
+JavaScript and TypeScript route registrations with inline or wrapped callbacks are indexed as bounded `RouteHandler` symbols, so late-file authorization logic is searchable without transmitting an entire route module. Natural behavior searches prefer production evidence over matching test names while exact test identifiers and explicit test-path filters remain available. On compact pages, a strongly related direct callee may be promoted from the broader ranked window so one retrieval call can include both a boundary and its implementation evidence.
+
+To measure retrieval quality against a repository-specific JSON case set, run `npm run benchmark:retrieval -- <repository-root> <cases.json>`. Each case makes one compact `find_code` call. A case passes only when every declared target is present; the report separately tracks case recall, target recall, bounded mean reciprocal rank, response bytes, and pass/fail budgets.
+
+For broader regression testing, run `npm run benchmark:system`. The deterministic fixture-backed suite exercises retrieval, qualified symbol resolution, caller/callee discovery, transitive impact, dependency paths, API topology, and duplicate-evidence suppression. It reports per-category scores, assertion-level failure diagnostics, calls, response bytes, and estimated tokens. Pass a different fixture and manifest with `npm run benchmark:system -- <repository-root> <evaluation.json>`; manifests use only allowlisted read-only Graphward tools and can enforce rank and response-size ceilings per case.
+
 - `index_directory`
 - `list_indexed_repositories`
 - `get_repository_stats`

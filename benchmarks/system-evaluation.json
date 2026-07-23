@@ -1,0 +1,122 @@
+{
+  "name": "Graphward deterministic system evaluation",
+  "budget": {
+    "max_calls": 8,
+    "min_score": 1,
+    "max_response_bytes": 18000
+  },
+  "cases": [
+    {
+      "id": "exact_symbol_retrieval",
+      "category": "retrieval",
+      "tool": "find_code",
+      "args": {
+        "query": "authorize",
+        "limit": 5,
+        "context_lines": 2
+      },
+      "max_response_bytes": 3200,
+      "assertions": [
+        { "path": "response_detail", "operator": "equals", "value": "compact" },
+        { "path": "results", "operator": "contains_match", "value": { "name": "authorize", "file_path": "src/auth.js" }, "max_rank": 2 },
+        { "path": "results", "operator": "length_lte", "value": 5 }
+      ]
+    },
+    {
+      "id": "behavior_retrieval",
+      "category": "retrieval",
+      "tool": "find_code",
+      "args": {
+        "query": "double a number and format the response",
+        "limit": 5,
+        "context_lines": 3
+      },
+      "max_response_bytes": 3200,
+      "assertions": [
+        { "path": "results", "operator": "contains_match", "value": { "name": "handleRequest", "file_path": "src/service.js" }, "max_rank": 3 }
+      ]
+    },
+    {
+      "id": "qualified_symbol_resolution",
+      "category": "resolution",
+      "tool": "find_symbol",
+      "args": {
+        "name": "Controller.run",
+        "fuzzy": false,
+        "limit": 5
+      },
+      "assertions": [
+        { "path": "results", "operator": "contains_match", "value": { "qualified_name": "Controller.run", "file_path": "src/alias-user.ts" }, "max_rank": 1 }
+      ]
+    },
+    {
+      "id": "caller_and_callee_context",
+      "category": "relationships",
+      "tool": "get_symbol_context",
+      "args": {
+        "symbol": "multiply"
+      },
+      "assertions": [
+        { "path": "callers", "operator": "contains_match", "value": { "name": "handleRequest", "file_path": "src/service.js" } },
+        { "path": "callees", "operator": "contains_match", "value": { "name": "add", "file_path": "src/math.js" } }
+      ]
+    },
+    {
+      "id": "transitive_change_impact",
+      "category": "impact",
+      "tool": "get_impact",
+      "args": {
+        "target": "add",
+        "direction": "upstream",
+        "depth": 5
+      },
+      "assertions": [
+        { "path": "results", "operator": "contains_match", "value": { "name": "multiply", "file_path": "src/math.js" } },
+        { "path": "results", "operator": "contains_match", "value": { "name": "handleRequest", "file_path": "src/service.js" } }
+      ]
+    },
+    {
+      "id": "dependency_path_reasoning",
+      "category": "impact",
+      "tool": "get_dependency_path",
+      "args": {
+        "source": "handleRequest",
+        "target": "add",
+        "max_depth": 5
+      },
+      "assertions": [
+        { "path": "found", "operator": "equals", "value": true },
+        { "path": "path", "operator": "sequence", "value": [
+          { "name": "handleRequest" },
+          { "name": "multiply" },
+          { "name": "add" }
+        ] }
+      ]
+    },
+    {
+      "id": "api_route_client_linkage",
+      "category": "topology",
+      "tool": "get_api_topology",
+      "args": {},
+      "assertions": [
+        { "path": "counts.routes", "operator": "equals", "value": 1 },
+        { "path": "counts.linked", "operator": "equals", "value": 2 },
+        { "path": "links", "operator": "contains_match", "value": { "path": "/users/{}" } }
+      ]
+    },
+    {
+      "id": "duplicate_evidence_suppression",
+      "category": "efficiency",
+      "tool": "find_code",
+      "args": {
+        "query": "authorize",
+        "limit": 5,
+        "context_lines": 2
+      },
+      "max_response_bytes": 3000,
+      "assertions": [
+        { "path": "results", "operator": "contains_match", "value": { "name": "authorize", "file_path": "src/auth.js", "source_context": { "content_omitted": "duplicate evidence from this MCP session" } }, "max_rank": 2 }
+      ]
+    }
+  ]
+}

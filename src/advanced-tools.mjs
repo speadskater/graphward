@@ -1,4 +1,4 @@
-import { createHybridSearchIndex } from "./semantic-search.mjs";
+import { createHybridSearchIndex, tokenizeCodeText } from "./semantic-search.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -686,6 +686,28 @@ async function semanticIndex(db, repository) {
   return value;
 }
 
+function bestTermEvidence(lines, firstLine, lastLine, query) {
+  const queryTerms = [...new Set(tokenizeCodeText(query).filter((term) => term.length >= 3))];
+  let best = null;
+  for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+    const source = lines[lineNumber - 1] ?? "";
+    const lowerLine = source.toLocaleLowerCase();
+    const lineTerms = new Set(tokenizeCodeText(source.slice(0, 100_000)));
+    const matchedTerms = queryTerms.filter((term) => lineTerms.has(term));
+    if (matchedTerms.length > (best?.matchedTerms.length ?? 0)) best = { line: lineNumber, source, matchedTerms };
+  }
+  return best?.matchedTerms.slice(0, 3).map((term) => {
+    const column = best.source.toLocaleLowerCase().indexOf(term);
+    return {
+      line: best.line,
+      column: column + 1,
+      end_column: column + term.length + 1,
+      exact: false,
+      preview: best.source.trim().slice(0, 500),
+    };
+  }) ?? [];
+}
+
 function resultEvidence(repository, result, query, contextLines) {
   const absolute = path.resolve(repository.root, result.file_path);
   const relative = path.relative(repository.root, absolute);
@@ -715,7 +737,8 @@ function resultEvidence(repository, result, query, contextLines) {
       }
     }
   }
-  const literalMatches = exactMatches.length ? exactMatches : insensitiveMatches;
+  const termMatches = bestTermEvidence(lines, firstLine, lastLine, query);
+  const literalMatches = exactMatches.length ? exactMatches : (insensitiveMatches.length ? insensitiveMatches : termMatches);
   const center = literalMatches[0]?.line ?? firstLine;
   const contextStart = Math.max(1, center - contextLines);
   const contextEnd = Math.min(lines.length, center + contextLines);
@@ -727,6 +750,84 @@ function resultEvidence(repository, result, query, contextLines) {
       content: lines.slice(contextStart - 1, contextEnd).map((line, index) => `${contextStart + index}: ${line}`).join("\n"),
     },
   };
+}
+
+function callGraphPromotionCandidates(db, repository, rankedResults, pageSize) {
+  const anchors = rankedResults.slice(0, Math.min(3, pageSize));
+  const visibleIds = new Set(rankedResults.slice(0, pageSize).map((result) => result.id));
+  const candidateById = new Map(rankedResults.map((result, index) => [result.id, { result, index }]));
+  const anchorIndex = new Map(anchors.map((result, index) => [result.id, index]));
+  const rows = db.prepare(`
+    SELECT e.source_symbol_id, e.target_symbol_id, e.label, e.confidence
+    FROM edges e
+    WHERE e.repo_id = ? AND e.kind = 'calls'
+      AND e.source_symbol_id IN (${anchors.map(() => "?").join(",")})
+    ORDER BY e.confidence DESC, e.id
+  `).all(repository.id, ...anchors.map((result) => result.id));
+  return rows.map((row) => {
+    const candidate = candidateById.get(row.target_symbol_id);
+    const anchor = candidateById.get(row.source_symbol_id);
+    if (!candidate || !anchor || visibleIds.has(row.target_symbol_id)) return null;
+    if (candidate.result.score < anchor.result.score * 0.25) return null;
+    return {
+      ...row,
+      anchor_index: anchorIndex.get(row.source_symbol_id),
+      candidate_index: candidate.index,
+      result: candidate.result,
+    };
+  }).filter(Boolean).sort((left, right) => left.anchor_index - right.anchor_index
+    || left.candidate_index - right.candidate_index
+    || right.confidence - left.confidence
+    || left.target_symbol_id - right.target_symbol_id);
+}
+
+function selectGraphPromotions(eligible, pageSize) {
+  const promotionLimit = Math.max(1, Math.min(2, Math.floor(pageSize / 3)));
+  const promoted = [];
+  const promotedIds = new Set();
+  for (const item of eligible) {
+    if (promoted.length >= promotionLimit) break;
+    if (promotedIds.has(item.target_symbol_id)) continue;
+    promotedIds.add(item.target_symbol_id);
+    promoted.push({
+      source_symbol_id: item.source_symbol_id,
+      result: {
+        ...item.result,
+        graph_promotion: {
+          kind: "calls",
+          source_symbol_id: item.source_symbol_id,
+          label: item.label,
+          confidence: item.confidence,
+        },
+      },
+    });
+  }
+  return { promoted, promotedIds };
+}
+
+function reorderWithGraphPromotions(rankedResults, promoted, promotedIds) {
+  const promotionsBySource = new Map();
+  for (const promotion of promoted) {
+    const matching = promotionsBySource.get(promotion.source_symbol_id) ?? [];
+    matching.push(promotion.result);
+    promotionsBySource.set(promotion.source_symbol_id, matching);
+  }
+  const reordered = [];
+  for (const result of rankedResults) {
+    if (promotedIds.has(result.id)) continue;
+    reordered.push(result);
+    reordered.push(...(promotionsBySource.get(result.id) ?? []));
+  }
+  return reordered;
+}
+
+function promoteCallGraphNeighbors(db, repository, rankedResults, pageSize) {
+  if (rankedResults.length <= 1 || pageSize <= 1) return rankedResults;
+  const eligible = callGraphPromotionCandidates(db, repository, rankedResults, pageSize);
+  const { promoted, promotedIds } = selectGraphPromotions(eligible, pageSize);
+  return promoted.length
+    ? reorderWithGraphPromotions(rankedResults, promoted, promotedIds)
+    : rankedResults;
 }
 
 async function hybridFindCode(db, args) {
@@ -777,14 +878,22 @@ async function hybridFindCode(db, args) {
     };
   }
   const started = performance.now();
+  const graphWindowLimit = Math.min(101, Math.max(cursor + requested, 50));
+  const canGraphRerank = cursor + requested <= 101;
   const searchOptions = {
-    limit: requested,
-    offset: cursor,
+    limit: canGraphRerank ? graphWindowLimit : requested,
+    offset: canGraphRerank ? 0 : cursor,
     lexicalResults,
   };
   if (args.file_path != null) searchOptions.filePath = args.file_path;
   if (args.kind != null) searchOptions.kind = args.kind;
-  const pageResults = await cached.index.search(args.query, searchOptions);
+  const rankedResults = await cached.index.search(args.query, searchOptions);
+  const rerankedResults = canGraphRerank
+    ? promoteCallGraphNeighbors(db, repository, rankedResults, limit)
+    : rankedResults;
+  const pageResults = canGraphRerank
+    ? rerankedResults.slice(cursor, cursor + requested)
+    : rerankedResults;
   const hasMore = pageResults.length > limit;
   const results = pageResults.slice(0, limit).map((result) => ({
     id: result.id,

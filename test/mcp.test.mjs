@@ -97,9 +97,10 @@ test("serves tools over stdio JSON-RPC", async (t) => {
   });
   assert.equal(foundCode.result.isError, false);
   assert.equal(foundCode.result.structuredContent.mode, "hybrid-local");
+  assert.equal(foundCode.result.structuredContent.response_detail, "compact");
   assert.equal(foundCode.result.structuredContent.results[0].name, "authorize");
   assert.ok(foundCode.result.structuredContent.results.every((result) => (
-    result.embedding_provider_trust === "built-in-no-io"
+    result.embedding_provider_trust === undefined && result.scores === undefined
   )));
 
   const recordedTemporal = await request("tools/call", {

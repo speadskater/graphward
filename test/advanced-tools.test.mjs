@@ -40,6 +40,44 @@ test("integrates search, memory, topology, and quality analysis through MCP disp
   assert.ok(secondSearch.results[0].literal_matches.some((match) => match.line > 0 && match.column > 0));
   assert.match(secondSearch.results[0].source_context.content, /authorize/);
   assert.equal(secondSearch.index_snapshot.stale, false);
+
+  const compactContext = {
+    db,
+    defaultRoot: root,
+    defaultRepoId: "advanced",
+    surface: "mcp",
+    responseEvidenceHashes: new Set(),
+  };
+  const fullMcpSearch = await callTool("find_code", {
+    repo_id: "advanced", query: "authorize", limit: 10, response_detail: "full",
+  }, compactContext);
+  const compactMcpSearch = await callTool("find_code", {
+    repo_id: "advanced", query: "authorize", limit: 10,
+  }, compactContext);
+  assert.equal(compactMcpSearch.response_detail, "compact");
+  assert.ok(compactMcpSearch.results.length <= 5);
+  assert.equal(compactMcpSearch.results[0].scores, undefined);
+  assert.equal(compactMcpSearch.results[0].embedding_provider, undefined);
+  assert.equal(compactMcpSearch.results[0].id, undefined);
+  assert.equal(compactMcpSearch.results[0].language, undefined);
+  assert.equal(compactMcpSearch.results[0].exported, undefined);
+  assert.equal(compactMcpSearch.results[0].score, undefined);
+  assert.ok(compactMcpSearch.results.every((result) => (
+    result.literal_matches.every((match) => match.preview === undefined)
+  )));
+  assert.ok(compactMcpSearch.results.every((result) => (
+    (result.source_context?.content?.split(/\r?\n/).length ?? 0) <= 5
+  )));
+  assert.deepEqual(Object.keys(compactMcpSearch.index_snapshot), [
+    "snapshot_id", "index_generation", "stale", "dirty", "warning",
+  ]);
+  assert.ok(JSON.stringify(compactMcpSearch).length < JSON.stringify(fullMcpSearch).length * 0.55);
+  const repeatedCompactSearch = await callTool("find_code", {
+    repo_id: "advanced", query: "authorize", limit: 10,
+  }, compactContext);
+  assert.ok(repeatedCompactSearch.results.some((result) => (
+    result.source_context?.content_omitted === "duplicate evidence from this MCP session"
+  )));
   const firstPage = await callTool("find_code", { repo_id: "advanced", query: "function", limit: 1 }, context);
   assert.equal(firstPage.results.length, 1);
   assert.equal(firstPage.page.has_more, true);
@@ -238,6 +276,9 @@ test("integrates search, memory, topology, and quality analysis through MCP disp
   assert.equal(TOOL_DEFINITIONS.filter((tool) => tool.name === "find_code").length, 1);
   assert.ok(TOOL_DEFINITIONS.every((tool) => (
     tool.inputSchema?.type === "object" && tool.inputSchema.additionalProperties === false
+  )));
+  assert.ok(TOOL_DEFINITIONS.every((tool) => (
+    tool.inputSchema.properties.response_detail.enum.join(",") === "compact,full"
   )));
   const timelineDefinition = TOOL_DEFINITIONS.find((tool) => tool.name === "get_temporal_timeline");
   assert.equal(Object.hasOwn(timelineDefinition.inputSchema.properties, "cursor"), false);

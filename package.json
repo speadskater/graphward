@@ -26,6 +26,8 @@
     "src/",
     "skills/",
     "scripts/",
+    "benchmarks/",
+    "test/fixtures/sample/",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -38,11 +40,14 @@
     "graphward": "./src/cli.mjs"
   },
   "scripts": {
-    "test": "node --test test/indexer.test.mjs test/mcp.test.mjs test/python-parser.test.mjs test/javascript-relationships.test.mjs test/dom-selector-relationships.test.mjs test/workflow-analysis.test.mjs test/semantic-search.test.mjs test/local-memory.test.mjs test/temporal-memory.test.mjs test/service-topology.test.mjs test/quality-analysis.test.mjs test/process-memory.test.mjs test/review-engine.test.mjs test/advanced-tools.test.mjs test/dashboard.test.mjs test/fleet.test.mjs test/usage.test.mjs test/system-resources.test.mjs test/folder-picker.test.mjs test/client-setup.test.mjs",
+    "test": "node --test test/indexer.test.mjs test/mcp.test.mjs test/python-parser.test.mjs test/javascript-relationships.test.mjs test/dom-selector-relationships.test.mjs test/workflow-analysis.test.mjs test/semantic-search.test.mjs test/retrieval-quality.test.mjs test/system-evaluation.test.mjs test/local-memory.test.mjs test/temporal-memory.test.mjs test/service-topology.test.mjs test/quality-analysis.test.mjs test/process-memory.test.mjs test/review-engine.test.mjs test/advanced-tools.test.mjs test/dashboard.test.mjs test/fleet.test.mjs test/usage.test.mjs test/system-resources.test.mjs test/folder-picker.test.mjs test/client-setup.test.mjs",
     "setup": "node ./src/cli.mjs setup",
     "start": "node ./src/cli.mjs serve --index",
     "dashboard": "node ./src/cli.mjs dashboard",
-    "benchmark:parse": "node ./scripts/benchmark-parse.mjs"
+    "benchmark:parse": "node ./scripts/benchmark-parse.mjs",
+    "benchmark:mcp": "node ./scripts/benchmark-mcp-responses.mjs",
+    "benchmark:retrieval": "node ./scripts/benchmark-retrieval-quality.mjs",
+    "benchmark:system": "node ./scripts/benchmark-system.mjs"
   },
   "engines": {
     "node": ">=22.18"

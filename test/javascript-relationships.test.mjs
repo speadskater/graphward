@@ -146,3 +146,20 @@ test("falls back safely when malformed JavaScript is entirely covered by heurist
   assert.equal(result.symbols[0].name, "broken");
   assert.ok(Array.isArray(result.calls));
 });
+
+test("indexes anonymous HTTP route callbacks as bounded handler symbols", () => {
+  const result = parseSource(`
+const router = require('express').Router();
+router.post('/competitions/:id/transfer-owner', optionalAuth, asyncHandler(async (req, res) => {
+  const accountStaff = await loadAccountStaff(req.user.id);
+  await transferOwnership(req.params.id, accountStaff);
+  res.json({ ok: true });
+}));
+`, "javascript", "server/routes/competitions.js");
+  const route = result.symbols.find((symbol) => symbol.kind === "RouteHandler");
+  assert.equal(route.name, "POST /competitions/:id/transfer-owner");
+  assert.equal(route.qualifiedName, "<route:POST:/competitions/{}/transfer-owner>");
+  assert.match(route.bodyText, /loadAccountStaff/);
+  assert.ok(result.calls.some((call) => call.sourceStableKey === route.stableKey && call.calleeName === "transferOwnership"));
+  assert.equal(result.apiOperations[0].sourceStableKey, route.stableKey);
+});

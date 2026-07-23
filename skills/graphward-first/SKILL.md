@@ -18,7 +18,7 @@ Use Graphward as the first evidence source for indexed source-code tasks. Keep s
 
 - Locate a definition: `find_symbol`.
 - Find behavior, concepts, literals, or error text: `find_code`.
-- Understand a symbol: find it first, then call `get_symbol_context`; use `get_source_window` only for the narrowed source span.
+- Understand a symbol: use `get_symbol_context` only when callers, callees, or imports matter; use `get_source_window` only when the returned excerpt is insufficient.
 - Trace callers, callees, types, selectors, or dependencies: `get_code_relationships`, `get_dependency_path`, or `get_execution_flows`.
 - Estimate change risk: `get_impact`, then `get_cochange_context` and `governing_contracts` when relevant.
 - Explore a repository: `get_codebase_briefing`, `get_architecture`, or `get_repo_map`.
@@ -27,7 +27,16 @@ Use Graphward as the first evidence source for indexed source-code tasks. Keep s
 - Inspect history: `get_evolution`, `get_timeline`, `get_changes_since`, or `get_episode_replay`.
 - Assess quality: `find_hotspots`, `find_dead_code`, `calculate_cyclomatic_complexity`, or `get_style_fingerprint`.
 
-Use manual text search or broad file reads only after Graphward has narrowed the relevant files, or when Graphward is unavailable or cannot represent the required evidence. Explain the fallback briefly.
+Use targeted text search or bounded file reads when Graphward cannot represent the required evidence or two graph calls have not materially narrowed the task. Explain the fallback briefly.
+
+## Evidence budget
+
+- Start with the single smallest call likely to answer the immediate question.
+- Compact MCP responses are the default. Request `response_detail: "full"` only to debug ranking or inspect complete index diagnostics.
+- Do not ritualistically follow every search with context, impact, relationship, and source-window calls. Add a call only when it resolves a stated uncertainty.
+- Prefer a few strong candidates over broad result sets; page only when the first page is insufficient.
+- Do not request the same source span twice. Reuse evidence already present in the conversation.
+- Stop discovery when the answer and its uncertainty are supported; more graph output is not automatically better evidence.
 
 ## Before and after edits
 

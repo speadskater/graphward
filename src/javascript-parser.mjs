@@ -215,6 +215,29 @@ function nextRoutePath(relativePath) {
   return normalizeApiPath(`/${segments.join("/")}`);
 }
 
+function findInlineFunction(argument) {
+  if (["ArrowFunctionExpression", "FunctionExpression"].includes(argument?.type)) return argument;
+  if (!["CallExpression", "OptionalCallExpression"].includes(argument?.type)) return null;
+  return [...(argument.arguments ?? [])].reverse().map(findInlineFunction).find(Boolean) ?? null;
+}
+
+function inlineRouteDefinition(node) {
+  if (!["CallExpression", "OptionalCallExpression"].includes(node?.type)) return null;
+  const details = calleeDetails(node.callee);
+  const rootQualifier = details?.qualifier?.split(".")[0] ?? null;
+  const method = details?.calleeName?.toLowerCase();
+  const rawPath = literalText(node.arguments?.[0]);
+  if (!HTTP_METHOD_NAMES.has(method) || !ROUTE_QUALIFIERS.has(rootQualifier) || !rawPath) return null;
+  const handler = [...(node.arguments ?? [])].reverse().map(findInlineFunction).find(Boolean) ?? null;
+  if (!handler) return null;
+  const normalizedMethod = normalizeHttpMethod(method);
+  return {
+    name: `${normalizedMethod} ${rawPath}`,
+    qualifiedName: `<route:${normalizedMethod}:${normalizeApiPath(rawPath)}>`,
+    kind: "RouteHandler",
+  };
+}
+
 function calleeDetails(callee) {
   if (!callee || callee.type === "Import") return null;
   if (callee.type === "Identifier") return { calleeName: callee.name, qualifier: null };
@@ -306,6 +329,9 @@ export function parseJavaScriptSource(content, relativePath) {
       }
       return;
     }
+
+    const routeDefinition = inlineRouteDefinition(node);
+    if (routeDefinition) addDefinition(node, { ...routeDefinition, exported: false });
 
     if (node.type === "FunctionDeclaration") {
       const name = bindingName(node.id);

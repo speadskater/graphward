@@ -1,0 +1,48 @@
+{
+  "name": "Continuous Cup authorization retrieval",
+  "budget": {
+    "max_calls": 3,
+    "min_recall": 1,
+    "min_target_recall": 1,
+    "min_mean_reciprocal_rank": 0.65,
+    "max_response_bytes": 14000
+  },
+  "cases": [
+    {
+      "id": "ownership_transfer_guard",
+      "query": "competition ownership transfer authorization staff role privilege",
+      "expected": [
+        {
+          "file_path": "server/routes/competitions.js",
+          "name": "POST /:id/transfer-owner",
+          "kind": "RouteHandler"
+        }
+      ]
+    },
+    {
+      "id": "optional_auth_view_as_mutation",
+      "query": "optional authentication view as mutation public post bypass",
+      "expected": [
+        {
+          "file_path": "server/middleware/auth.js",
+          "name": "optionalAuth"
+        }
+      ]
+    },
+    {
+      "id": "safe_read_side_effect",
+      "query": "GET read request mutates updates competition phase state authorization",
+      "expected": [
+        {
+          "file_path": "server/routes/competitions.js",
+          "name": "GET /:id",
+          "kind": "RouteHandler"
+        },
+        {
+          "file_path": "server/middleware/phase-check.js",
+          "name": "checkPhaseAdvance"
+        }
+      ]
+    }
+  ]
+}
